@@ -51,6 +51,29 @@ Therefore the README intentionally describes the system's source-backed capabili
 
 This does not assert that earlier experiments did not occur. It only keeps public claims aligned with the evidence currently committed and independently inspectable.
 
+## Appropriate external claim today
+
+A defensible statement is:
+
+> ADSA is a publicly released Atenea Labs implementation of an autonomous, model-assisted machine-learning loop that generates and executes candidate solutions, observes failures/runtime behaviour, requests repairs or optimizations, and persists progress/result artefacts across iterations.
+
+## Inappropriate extrapolations
+
+The repository does **not** currently establish:
+
+- a verified global `98%` data-scientist/competition percentile;
+- automotive validation, OpenSCENARIO or crash-scenario expertise;
+- a production SLA or safety-critical execution boundary;
+- current compatibility with the latest provider model/API versions;
+- a hardened sandbox for model-generated code;
+- customer deployment or commercial traction unless separately evidenced.
+
+## Relationship to newer Atenea R&D
+
+ADSA is useful as prior **Atenea Labs autonomous/tool-using AI implementation evidence**. It does not make newer domain projects inherit capabilities they have not implemented themselves.
+
+For example, SafetyGraph has its own source, architecture, deterministic validators, provenance, standards-conformance and evidence receipts. ADSA should not be described as if it already implemented SafetyGraph's automotive or safety-validation functionality.
+
 ## How to restore a quantitative claim
 
 Add a versioned benchmark package containing the evidence contract above, ideally including:
