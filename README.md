@@ -1,391 +1,271 @@
-# ADSA (Autonomous Data Scientist Agent)
+# ADSA — Autonomous Data Scientist Agent
 
 <div align="center">
   <img src="atenea-icono.svg" alt="Atenea Labs Logo" width="150"/>
 
+**Atenea Labs Research**
 
-By Atenea Labs Research Team
+Autonomous iterative ML solution generation, execution, repair and optimization.
 
-
-**[🇬🇧 English](#english) | [🇪🇸 Español](#español)**
-
+**[English](#english) · [Español](#español)**
 </div>
 
 ---
 
 <a name="english"></a>
-# 🇬🇧 English
 
-## Overview
+# English
 
-ADSA is an autonomous multi-agent system developed by [Atenea Labs](https://atenealabs.com) that automates the entire machine learning process. The system has demonstrated the capability to outperform 98% of data scientists in global competitions.
+## What ADSA is
 
-📄 Read our detailed whitepaper: [English Version](ADSA_Whitepaper_EN.pdf)
+ADSA is an **open-source research prototype** from Atenea Labs for autonomous data-science workflows. Given a tabular ML problem, it can generate candidate Python solutions, execute them, inspect results/errors, request repairs or performance improvements from AI models, and iterate while preserving previous solutions and progress reports.
 
-## About Atenea Labs
+The repository demonstrates a real autonomous execution loop. It should be evaluated from its source code and reproducible runs rather than from unsupported leaderboard or percentile claims.
 
-Atenea Labs is a leading AI consultancy firm that specializes in transforming businesses through cutting-edge artificial intelligence solutions. Our team of experts helps companies leverage the power of AI to:
+> **Evidence policy:** benchmark/performance claims are only considered verified when the repository contains or links an immutable evidence receipt describing the dataset, metric, code version, model/provider configuration and result. See [`EVIDENCE.md`](EVIDENCE.md).
 
-- 🚀 Accelerate Digital Transformation
-- 💡 Develop Custom AI Solutions
-- 📊 Automate Data Analysis
-- 🔄 Optimize Business Processes
-- 🎯 Drive Innovation
+## What the current code demonstrates
 
-Visit [atenealabs.com](https://atenealabs.com) to learn how we can help transform your business with AI.
+At the current `main` implementation, ADSA includes:
 
-## Key Features
+- **Iterative ML solution generation** using Azure OpenAI.
+- **Execution feedback loops** that feed previous metrics/results into the next iteration.
+- **Automatic repair** using Anthropic Claude when generated Python fails.
+- **Timeout handling and performance recovery** for solutions that exceed a configurable runtime budget.
+- **Solution history** through archived code, results and `progress_report.json` artifacts.
+- **GPU-aware prompting** so generated solutions can use acceleration when available.
+- **Provider separation** between solution generation and repair/optimization paths.
 
-- **Autonomous Operation**: Fully automated machine learning pipeline
-- **Multi-Agent Architecture**: Utilizes multiple AI agents for different tasks
-- **Iterative Optimization**: Continuously improves models through multiple iterations
-- **GPU Acceleration**: Automatic GPU detection and utilization when available
-- **Error Recovery**: Self-healing capabilities with automatic error detection and correction
-- **Performance Monitoring**: Detailed progress tracking and reporting
+ADSA is a research prototype, not a production AutoML service or a safety sandbox.
 
-## System Components
+## Architecture
 
-1. **API Clients Setup**
-   - Azure OpenAI integration
-   - Anthropic Claude integration
-   - Environment configuration management
+```text
+problem_info.md + train.csv/test.csv
+            |
+            v
+   solution-generation model
+            |
+            v
+      generated Python
+            |
+            v
+  bounded-time local execution
+       |              |
+       | success      | error/timeout
+       v              v
+ progress/results   repair or optimization model
+       |              |
+       +------ feedback+
+              |
+              v
+         next iteration
+```
 
-2. **Data Processing**
-   - Automated data loading and preparation
-   - Dynamic feature engineering
-   - Training/test set management
+The loop is intentionally simple and inspectable. Generated solutions, progress reports and outputs are materialized to disk so each iteration can inform the next one.
 
-3. **ML Solution Generation**
-   - Automated code generation
-   - Model selection and optimization
-   - GPU utilization when available
-   - Cross-validation implementation
+## Security warning
 
-4. **Error Handling & Optimization**
-   - Automatic error detection
-   - Code optimization for performance
-   - Timeout management
-   - Self-healing capabilities
+**ADSA executes model-generated Python locally.** The current research implementation can also ask a repair model to add package-install commands when imports are missing.
+
+Run it only in an isolated/disposable environment:
+
+- use a container/VM or otherwise sandbox the process;
+- use least-privilege, revocable API credentials;
+- do not expose production secrets or sensitive/private datasets to generated code;
+- restrict filesystem/network access where appropriate;
+- review generated code before using ADSA on valuable systems or data;
+- do not assume model-generated dependency installation is trustworthy.
+
+See [`SECURITY.md`](SECURITY.md) for the project security boundary.
 
 ## Requirements
 
-- Python 3.8+
-- Required Python packages (see requirements.txt)
-- API Keys:
-  - Azure OpenAI API
-  - Anthropic Claude API
-
-## API Setup
-
-### Azure OpenAI Setup
-1. Visit [Azure OpenAI Service](https://azure.microsoft.com/en-us/products/cognitive-services/openai-service)
-2. Sign up for an Azure account if you don't have one
-3. Create a new Azure OpenAI resource
-4. Deploy o1 model in your resource
-5. Get your API credentials:
-   - Endpoint URL
-   - API Key
-   - Deployment Name
-   - API Version
-
-### Anthropic Claude Setup
-1. Visit [Anthropic Claude](https://www.anthropic.com/claude)
-2. Sign up for an account
-3. Navigate to API settings
-4. Generate an API key
+- Python 3.8+ for the historical implementation
+- dependencies from `requirements.txt`
+- Azure OpenAI credentials
+- Anthropic API credentials
 
 ## Installation
 
-1. Clone the repository:
 ```bash
-git clone https://github.com/atenealabs/adsa.git
+git clone https://github.com/AteneaLabs/adsa.git
 cd adsa
-```
-
-2. Install dependencies:
-```bash
 pip install -r requirements.txt
-```
-
-3. Configure environment variables:
-```bash
 cp .env.example .env
-# Edit .env with your API keys:
-# AZURE_OPENAI_KEY=your_azure_key
-# AZURE_OPENAI_ENDPOINT=your_azure_endpoint
-# AZURE_OPENAI_DEPLOYMENT=your_deployment_name
-# AZURE_OPENAI_VERSION=your_api_version
-# ANTHROPIC_API_KEY=your_claude_key
 ```
 
-## Problem Specification
+Configure the variables documented in `.env.example`.
 
-Before running ADSA, you need to create a `problem_info.md` file that describes your machine learning task. This file is crucial as it guides the AI agents in understanding and solving your problem.
+## Problem specification
 
-### problem_info.md Structure
+Create `problem_info.md` describing:
 
-```markdown
-# Problem Description
-[Brief description of the problem]
+- objective/target;
+- train/test files;
+- evaluation metric;
+- runtime/memory constraints;
+- expected output format.
 
-## Objective
-[Clear statement of what needs to be predicted/classified/etc.]
+The repository contains an example specification and example tabular data.
 
-## Data Description
-- Input file: train.csv
-- Test file: test.csv
-- Target variable: [name of the target column]
-- Features: [list of important features]
+## Run
 
-## Evaluation Metric
-[Specify the metric used to evaluate the model (e.g., accuracy, RMSE, etc.)]
-
-## Constraints
-- [Any time constraints]
-- [Memory constraints]
-- [Other technical constraints]
-
-## Expected Output Format
-[Description of the required output format]
-```
-
-### Example problem_info.md
-
-```markdown
-# Spaceship Titanic Classification
-
-## Objective
-Predict which passengers were transported to an alternate dimension during the Spaceship Titanic's collision with a spacetime anomaly.
-
-## Data Description
-- Input file: train.csv (8700 passengers)
-- Test file: test.csv (4300 passengers)
-- Target variable: Transported (boolean)
-- Features: PassengerId, HomePlanet, CryoSleep, Cabin, Destination, Age, VIP, RoomService, FoodCourt, ShoppingMall, Spa, VRDeck
-
-## Evaluation Metric
-Binary classification accuracy
-
-## Constraints
-- Maximum runtime: 30 minutes per iteration
-- Memory usage: <32GB RAM
-- GPU acceleration when available
-
-## Expected Output Format
-CSV file with columns:
-- PassengerId
-- Transported (boolean: True/False)
-```
-
-## Usage
-
-1. Place your training data in `train.csv`
-2. Place your test data in `test.csv`
-3. Create and configure `problem_info.md` as described above
-4. Run ADSA:
 ```bash
 python adsa.py
 ```
 
-## Output Files
+Typical generated artifacts:
 
-- `solution.py`: Current iteration's ML solution
-- `progress_report.json`: Performance metrics and progress tracking
-- `results.csv`: Final predictions and results
-- `execution_logs.txt`: Detailed execution logs
-- `older_solutions/`: Archive of previous iterations
+- `solution.py` — current candidate solution;
+- `progress_report.json` — metrics/progress produced by the candidate;
+- `results.csv` — predictions/output;
+- `execution_logs.txt` — execution feedback;
+- `older_solutions/` — previous iterations.
 
-## Architecture
+## Research and reproducibility
 
-ADSA operates through an iterative process:
+The included whitepapers document the project concept:
 
-1. **Initial Setup**
-   - Environment configuration
-   - API client initialization
-   - Data preparation
+- [`ADSA_Whitepaper_EN.pdf`](ADSA_Whitepaper_EN.pdf)
+- [`ADSA_Whitepaper_ES.pdf`](ADSA_Whitepaper_ES.pdf)
 
-2. **Solution Generation**
-   - ML code generation via Azure OpenAI
-   - Code optimization and error checking
-   - GPU utilization verification
-
-3. **Execution & Monitoring**
-   - Solution implementation
-   - Performance tracking
-   - Error detection and recovery
-
-4. **Optimization Loop**
-   - Performance analysis
-   - Code improvement suggestions
-   - Iterative refinement
-
-## Performance
-
-- Maximum runtime: 30 minutes per iteration
-- Maximum iterations: 50
-- Automatic performance optimization
-- GPU acceleration when available
+For externally cited performance claims, prefer immutable benchmark receipts over prose in a paper or README. The minimum evidence contract is documented in [`EVIDENCE.md`](EVIDENCE.md).
 
 ## License
 
-See [LICENSE.md](LICENSE.md) for details.
-
-## Contact
-
-Transform your business with AI:
-- 🌐 Website: [atenealabs.com](https://atenealabs.com)
-- 📧 Email: [info@atenea.dev](mailto:info@atenea.dev)
-- 🔬 Research: [adsa.atenea.dev](https://adsa.atenea.dev)
-- 💼 LinkedIn: [Atenea Labs](https://linkedin.com/company/atenealabs)
-
-## About the Team
-
-ADSA is developed by the Atenea Labs Research Team, led by Carlos Navarro Cabrera. Our team combines expertise in artificial intelligence, machine learning, and software engineering to create cutting-edge AI solutions that drive business transformation. 
+ADSA source is publicly available under the project license in [`LICENSE.md`](LICENSE.md). It is a permissive MIT-derived software license with additional attribution and Atenea/Atenea Labs trademark conditions. Review the actual license text before redistribution or derivative use.
 
 ---
 
 <a name="español"></a>
-# 🇪🇸 Español
 
-## Descripción General
+# Español
 
-ADSA es un sistema multi-agente autónomo desarrollado por [Atenea Labs](https://atenealabs.com) que automatiza todo el proceso de machine learning. El sistema ha demostrado la capacidad de superar al 98% de los científicos de datos en competiciones globales.
+## Qué es ADSA
 
-📄 Lee nuestro whitepaper detallado: [Versión en Español](ADSA_Whitepaper_ES.pdf)
+ADSA es un **prototipo de investigación open source** de Atenea Labs para flujos autónomos de ciencia de datos. A partir de un problema de machine learning tabular, puede generar soluciones candidatas en Python, ejecutarlas, inspeccionar resultados/errores, solicitar reparaciones o mejoras de rendimiento a modelos de IA e iterar conservando soluciones y métricas anteriores.
 
-## Sobre Atenea Labs
+El repositorio demuestra un bucle autónomo real de ejecución. Debe evaluarse por su código y ejecuciones reproducibles, no mediante afirmaciones de ranking o percentiles sin evidencia reproducible asociada.
 
-Atenea Labs es una consultora líder en Inteligencia Artificial que se especializa en transformar empresas mediante soluciones de IA de vanguardia. Nuestro equipo de expertos ayuda a las empresas a aprovechar el poder de la IA para:
+> **Política de evidencia:** un claim de benchmark/rendimiento sólo se considera verificado cuando existe o se enlaza un receipt inmutable con dataset, métrica, versión del código, configuración de modelos/proveedores y resultado. Ver [`EVIDENCE.md`](EVIDENCE.md).
 
-- 🚀 Acelerar la Transformación Digital
-- 💡 Desarrollar Soluciones de IA Personalizadas
-- 📊 Automatizar el Análisis de Datos
-- 🔄 Optimizar Procesos de Negocio
-- 🎯 Impulsar la Innovación
+## Qué demuestra el código actual
 
-Visita [atenealabs.com](https://atenealabs.com) para descubrir cómo podemos ayudar a transformar tu empresa con IA.
+La implementación actual incluye:
 
-## Características Principales
+- **Generación iterativa de soluciones ML** mediante Azure OpenAI.
+- **Bucle de feedback de ejecución**, utilizando métricas/resultados previos en iteraciones posteriores.
+- **Reparación automática** mediante Anthropic Claude cuando falla el Python generado.
+- **Timeouts y recuperación de rendimiento** cuando una solución supera el presupuesto de ejecución.
+- **Historial de soluciones**, resultados y `progress_report.json`.
+- **Prompts conscientes de GPU** para aprovechar aceleración cuando esté disponible.
+- **Separación de proveedores** entre generación y reparación/optimización.
 
-- **Operación Autónoma**: Pipeline de machine learning completamente automatizado
-- **Arquitectura Multi-Agente**: Utiliza múltiples agentes de IA para diferentes tareas
-- **Optimización Iterativa**: Mejora continua de modelos a través de múltiples iteraciones
-- **Aceleración GPU**: Detección automática y utilización de GPU cuando está disponible
-- **Recuperación de Errores**: Capacidades de auto-reparación con detección y corrección automática de errores
-- **Monitoreo de Rendimiento**: Seguimiento y reportes detallados del progreso
+ADSA es un prototipo de investigación; no es todavía un servicio AutoML de producción ni un sandbox de seguridad.
 
-## Componentes del Sistema
+## Arquitectura
 
-1. **Configuración de Clientes API**
-   - Integración con Azure OpenAI
-   - Integración con Anthropic Claude
-   - Gestión de configuración del entorno
+```text
+problem_info.md + train.csv/test.csv
+            |
+            v
+ modelo generador de solución
+            |
+            v
+       Python generado
+            |
+            v
+ ejecución local con timeout
+       |              |
+       | éxito        | error/timeout
+       v              v
+ progreso/resultados reparación u optimización
+       |              |
+       +------ feedback+
+              |
+              v
+       siguiente iteración
+```
 
-2. **Procesamiento de Datos**
-   - Carga y preparación automatizada de datos
-   - Ingeniería de características dinámica
-   - Gestión de conjuntos de entrenamiento/prueba
+## Advertencia de seguridad
 
-3. **Generación de Soluciones ML**
-   - Generación automática de código
-   - Selección y optimización de modelos
-   - Utilización de GPU cuando está disponible
-   - Implementación de validación cruzada
+**ADSA ejecuta Python generado por modelos de IA en la máquina local.** La implementación de investigación actual también puede pedir al modelo reparador que introduzca comandos de instalación de dependencias cuando faltan imports.
 
-4. **Manejo de Errores y Optimización**
-   - Detección automática de errores
-   - Optimización de código para rendimiento
-   - Gestión de tiempos de ejecución
-   - Capacidades de auto-reparación
+Úsalo únicamente en un entorno aislado/desechable:
+
+- contenedor/VM o sandbox equivalente;
+- credenciales API revocables y con mínimo privilegio;
+- no expongas secretos de producción ni datasets sensibles/privados al código generado;
+- limita filesystem/red cuando proceda;
+- revisa el código generado antes de usar ADSA sobre sistemas o datos valiosos;
+- no asumas que una dependencia propuesta por el modelo es confiable.
+
+Ver [`SECURITY.md`](SECURITY.md).
 
 ## Requisitos
 
-- Python 3.8+
-- Paquetes Python requeridos (ver requirements.txt)
-- Claves API:
-  - API de Azure OpenAI
-  - API de Anthropic Claude
+- Python 3.8+ para la implementación histórica
+- dependencias de `requirements.txt`
+- credenciales Azure OpenAI
+- credenciales Anthropic
 
 ## Instalación
 
-1. Clonar el repositorio:
 ```bash
-git clone https://github.com/atenealabs/adsa.git
+git clone https://github.com/AteneaLabs/adsa.git
 cd adsa
-```
-
-2. Instalar dependencias:
-```bash
 pip install -r requirements.txt
-```
-
-3. Configurar variables de entorno:
-```bash
 cp .env.example .env
-# Editar .env con tus claves API
 ```
 
-## Uso
+Configura las variables documentadas en `.env.example`.
 
-1. Coloca tus datos de entrenamiento en `train.csv`
-2. Coloca tus datos de prueba en `test.csv`
-3. Configura las especificaciones del problema en `problem_info.md`
-4. Ejecuta ADSA:
+## Especificación del problema
+
+Crea `problem_info.md` indicando:
+
+- objetivo/target;
+- ficheros de train/test;
+- métrica de evaluación;
+- restricciones de ejecución/memoria;
+- formato de salida esperado.
+
+El repositorio contiene un ejemplo.
+
+## Ejecución
+
 ```bash
 python adsa.py
 ```
 
-## Archivos de Salida
+Artefactos habituales:
 
-- `solution.py`: Solución ML de la iteración actual
-- `progress_report.json`: Métricas de rendimiento y seguimiento del progreso
-- `results.csv`: Predicciones y resultados finales
-- `execution_logs.txt`: Logs detallados de ejecución
-- `older_solutions/`: Archivo de iteraciones anteriores
+- `solution.py` — solución candidata actual;
+- `progress_report.json` — métricas/progreso producidas por la solución;
+- `results.csv` — predicciones/salida;
+- `execution_logs.txt` — feedback de ejecución;
+- `older_solutions/` — iteraciones anteriores.
 
-## Arquitectura
+## Investigación y reproducibilidad
 
-ADSA opera a través de un proceso iterativo:
+Whitepapers incluidos:
 
-1. **Configuración Inicial**
-   - Configuración del entorno
-   - Inicialización de clientes API
-   - Preparación de datos
+- [`ADSA_Whitepaper_EN.pdf`](ADSA_Whitepaper_EN.pdf)
+- [`ADSA_Whitepaper_ES.pdf`](ADSA_Whitepaper_ES.pdf)
 
-2. **Generación de Soluciones**
-   - Generación de código ML vía Azure OpenAI
-   - Optimización y verificación de código
-   - Verificación de utilización de GPU
-
-3. **Ejecución y Monitoreo**
-   - Implementación de soluciones
-   - Seguimiento del rendimiento
-   - Detección y recuperación de errores
-
-4. **Ciclo de Optimización**
-   - Análisis de rendimiento
-   - Sugerencias de mejora de código
-   - Refinamiento iterativo
-
-## Rendimiento
-
-- Tiempo máximo de ejecución: 30 minutos por iteración
-- Iteraciones máximas: 50
-- Optimización automática del rendimiento
-- Aceleración GPU cuando está disponible
+Para claims externos de rendimiento, deben preferirse receipts de benchmark inmutables y reproducibles frente a afirmaciones narrativas del whitepaper o README. El contrato mínimo está en [`EVIDENCE.md`](EVIDENCE.md).
 
 ## Licencia
 
-Ver [LICENSE.md](LICENSE.md) para más detalles.
+El código fuente de ADSA es público bajo la licencia del proyecto en [`LICENSE.md`](LICENSE.md): una licencia permisiva derivada de MIT con requisitos adicionales de atribución y protección de las marcas Atenea/Atenea Labs. Consulta el texto real antes de redistribuir o crear derivados.
 
-## Contacto
+---
 
-Transforma tu empresa con IA:
-- 🌐 Sitio web: [atenealabs.com](https://atenealabs.com)
-- 📧 Email: [info@atenea.dev](mailto:info@atenea.dev)
-- 🔬 Investigación: [adsa.atenea.dev](https://adsa.atenea.dev)
-- 💼 LinkedIn: [Atenea Labs](https://linkedin.com/company/atenealabs)
+## Contact
 
-## Sobre el Equipo
+- Atenea Labs: https://atenealabs.com
+- Research: https://adsa.atenea.dev
+- Repository: https://github.com/AteneaLabs/adsa
 
-ADSA es desarrollado por el Equipo de Investigación de Atenea Labs, liderado por Carlos Navarro Cabrera. Nuestro equipo combina experiencia en inteligencia artificial, machine learning e ingeniería de software para crear soluciones de IA de vanguardia que impulsan la transformación empresarial. 
+ADSA is developed by the Atenea Labs Research Team.
