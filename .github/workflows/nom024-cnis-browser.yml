@@ -1,0 +1,81 @@
+name: NOM-024 CNIS browser retrieval
+
+on:
+  push:
+    branches: [ops/nom024-official-fetch-20260829]
+    paths: [.github/workflows/nom024-cnis-browser.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Render CSG page through its JavaScript challenge
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=nom024-cnis-browser
+          mkdir -p "$OUT"
+          CHROME=$(command -v google-chrome || command -v chromium || command -v chromium-browser)
+          URL='https://www.gob.mx/csg/es/articulos/medicamentos-compendio-nacional-de-insumos-para-la-salud-2025'
+          timeout 180 "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
+            --disable-blink-features=AutomationControlled --window-size=1440,12000 \
+            --user-agent='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36' \
+            --virtual-time-budget=120000 --dump-dom "$URL" > "$OUT/CSG-CNIS-2025-rendered.html" || true
+          grep -i '<title' "$OUT/CSG-CNIS-2025-rendered.html" | head || true
+          python - <<'PY'
+          import csv, hashlib, json, os, re
+          from pathlib import Path
+          from urllib.parse import urljoin, urlparse
+          import urllib.request
+          from html.parser import HTMLParser
+
+          out=Path('nom024-cnis-browser')
+          base='https://www.gob.mx/csg/es/articulos/medicamentos-compendio-nacional-de-insumos-para-la-salud-2025'
+          html=(out/'CSG-CNIS-2025-rendered.html').read_text(encoding='utf-8',errors='replace')
+          class P(HTMLParser):
+              def __init__(self): super().__init__(); self.links=[]; self.href=None; self.text=[]
+              def handle_starttag(self,tag,attrs):
+                  if tag=='a':
+                      d=dict(attrs); self.href=d.get('href'); self.text=[]
+              def handle_data(self,data):
+                  if self.href is not None: self.text.append(data)
+              def handle_endtag(self,tag):
+                  if tag=='a' and self.href is not None:
+                      self.links.append((' '.join(''.join(self.text).split()),urljoin(base,self.href))); self.href=None; self.text=[]
+          p=P(); p.feed(html)
+          links=[]; seen=set()
+          for text,url in p.links:
+              if url in seen: continue
+              seen.add(url)
+              if 'cms/uploads/attachment' in url or any(k in (text+' '+url).lower() for k in ('cnis 2025','material de curaci','instrumental y equipo','medicamentos')):
+                  links.append({'text':text,'url':url})
+          (out/'links.json').write_text(json.dumps(links,ensure_ascii=False,indent=2),encoding='utf-8')
+          records=[]
+          opener=urllib.request.build_opener(); opener.addheaders=[('User-Agent','Mozilla/5.0')]
+          for i,item in enumerate(links,1):
+              url=item['url']
+              if 'cms/uploads/attachment' not in url: continue
+              try:
+                  data=opener.open(url,timeout=180).read()
+                  name=re.sub(r'[^A-Za-z0-9._()\-]+','_',os.path.basename(urlparse(url).path) or f'attachment-{i}')
+                  (out/name).write_bytes(data)
+                  records.append({'text':item['text'],'url':url,'file':name,'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest()})
+              except Exception as exc:
+                  records.append({'text':item['text'],'url':url,'error':f'{type(exc).__name__}: {exc}'})
+          (out/'downloads.json').write_text(json.dumps(records,ensure_ascii=False,indent=2),encoding='utf-8')
+          print(json.dumps({'html_bytes':len(html),'challenge':('Challenge Validation' in html),'links':links,'downloads':records},ensure_ascii=False,indent=2))
+          PY
+          find "$OUT" -type f -printf '%f %s bytes\n'
+      - name: Upload browser result
+        uses: actions/upload-artifact@v4
+        with:
+          name: nom024-cnis-browser
+          path: nom024-cnis-browser
+          if-no-files-found: error
+          retention-days: 7
