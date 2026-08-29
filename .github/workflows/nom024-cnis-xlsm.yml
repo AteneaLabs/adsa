@@ -1,0 +1,67 @@
+name: NOM-024 CNIS structured workbooks
+
+on:
+  push:
+    branches: [ops/nom024-official-fetch-20260829]
+    paths: [.github/workflows/nom024-cnis-xlsm.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and validate official CSG workbooks
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=nom024-cnis-xlsm
+          mkdir -p "$OUT"
+          cat > /tmp/cnis.tsv <<'EOF'
+          AUXILIARES_DE_DIAGNOSTICO_CNIS_2025.xlsm	https://csg.gob.mx/AUXILIARES_DE_DIAGNOSTICO_CNIS_2025.xlsm
+          COMPENDIO_MEDICAMENTOS_V07042026.xlsm	https://csg.gob.mx/COMPENDIO_MEDICAMENTOS_V07042026.xlsm
+          INSTRUMENTAL_Y_EQUIPO_MEDICO_TOMO_I_Y_II_V12052026FINAL.XLSM	https://csg.gob.mx/INSTRUMENTAL_Y_EQUIPO_MEDICO_TOMO_I_Y_II_V12052026FINAL.XLSM
+          MATERIAL_DE_CURACION_CNIS_2025_2.XLSM	https://csg.gob.mx/MATERIAL_DE_CURACION_CNIS_2025_2.XLSM
+          EOF
+          : > "$OUT/sources.tsv"
+          while IFS=$'\t' read -r name url; do
+            curl -k -L --fail --silent --show-error --connect-timeout 20 --max-time 300 "$url" -o "$OUT/$name"
+            mime=$(file -b --mime-type "$OUT/$name")
+            size=$(stat -c %s "$OUT/$name")
+            sha=$(sha256sum "$OUT/$name" | awk '{print $1}')
+            printf '%s\t%s\t%s\t%s\t%s\n' "$name" "$url" "$mime" "$size" "$sha" >> "$OUT/sources.tsv"
+          done < /tmp/cnis.tsv
+          date -u +%FT%TZ > "$OUT/consulted-at-utc.txt"
+          (cd "$OUT" && sha256sum *.xlsm > SHA256SUMS)
+          cat "$OUT/sources.tsv"
+      - name: Inspect workbook structure
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from openpyxl import load_workbook
+          root=Path('nom024-cnis-xlsm')
+          lines=[]
+          for p in sorted(root.glob('*.xlsm')):
+              wb=load_workbook(p,read_only=True,data_only=False,keep_vba=True)
+              lines.append(f'## {p.name}')
+              for ws in wb.worksheets:
+                  lines.append(f'- sheet={ws.title!r}; max_row={ws.max_row}; max_column={ws.max_column}')
+                  for row in ws.iter_rows(min_row=1,max_row=min(ws.max_row,20),values_only=True):
+                      vals=[str(v).strip() for v in row if v not in (None,'')]
+                      if vals: lines.append('  - '+ ' | '.join(vals[:20]))
+              wb.close()
+          (root/'workbook-inspection.txt').write_text('\n'.join(lines)+'\n',encoding='utf-8')
+          print('\n'.join(lines[:300]))
+          PY
+      - name: Upload structured CNIS workbooks
+        uses: actions/upload-artifact@v4
+        with:
+          name: nom024-cnis-xlsm
+          path: nom024-cnis-xlsm
+          if-no-files-found: error
+          retention-days: 7
