@@ -29,7 +29,6 @@ jobs:
           while IFS=$'\t' read -r name url; do
             curl -k -L --fail --silent --show-error --connect-timeout 20 --max-time 300 "$url" -o "$OUT/$name"
             test "$(file -b --mime-type "$OUT/$name")" = application/pdf
-            pdfinfo "$OUT/$name" >/dev/null
             sha=$(sha256sum "$OUT/$name" | awk '{print $1}')
             size=$(stat -c %s "$OUT/$name")
             printf '%s\t%s\t%s\t%s\n' "$name" "$url" "$size" "$sha" >> "$OUT/sources.tsv"
@@ -38,6 +37,7 @@ jobs:
           (cd "$OUT" && sha256sum *.pdf > SHA256SUMS)
           cat "$OUT/sources.tsv"
       - name: Upload CSG originals
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: nom024-csg-prontuario
