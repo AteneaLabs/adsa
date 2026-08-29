@@ -1,0 +1,46 @@
+name: NOM-024 CSG prontuario
+
+on:
+  push:
+    branches: [ops/nom024-official-fetch-20260829]
+    paths: [.github/workflows/nom024-csg-prontuario.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download official CSG medication PDFs
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=nom024-csg-prontuario
+          mkdir -p "$OUT"
+          cat > /tmp/files.tsv <<'EOF'
+          PRONTUARIO_2025_V240725.pdf	https://www.csg.gob.mx/PRONTUARIO%202025V240725.pdf
+          COMPENDIO_BASE_2025_20250426.pdf	https://www.csg.gob.mx/Comp26042025.pdf
+          EOF
+          : > "$OUT/sources.tsv"
+          while IFS=$'\t' read -r name url; do
+            curl -k -L --fail --silent --show-error --connect-timeout 20 --max-time 300 "$url" -o "$OUT/$name"
+            test "$(file -b --mime-type "$OUT/$name")" = application/pdf
+            pdfinfo "$OUT/$name" >/dev/null
+            sha=$(sha256sum "$OUT/$name" | awk '{print $1}')
+            size=$(stat -c %s "$OUT/$name")
+            printf '%s\t%s\t%s\t%s\n' "$name" "$url" "$size" "$sha" >> "$OUT/sources.tsv"
+          done < /tmp/files.tsv
+          date -u +%FT%TZ > "$OUT/consulted-at-utc.txt"
+          (cd "$OUT" && sha256sum *.pdf > SHA256SUMS)
+          cat "$OUT/sources.tsv"
+      - name: Upload CSG originals
+        uses: actions/upload-artifact@v4
+        with:
+          name: nom024-csg-prontuario
+          path: nom024-csg-prontuario
+          if-no-files-found: error
+          retention-days: 7
