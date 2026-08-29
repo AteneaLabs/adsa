@@ -1,0 +1,98 @@
+name: NOM-024 CNIS 2025 category originals
+
+on:
+  push:
+    branches: [ops/nom024-official-fetch-20260829]
+    paths: [.github/workflows/nom024-cnis-2025.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install parser
+        run: python -m pip install --disable-pip-version-check requests beautifulsoup4
+      - name: Fetch CNIS 2025 page and original attachments
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv, hashlib, json, os, re
+          from datetime import datetime, timezone
+          from pathlib import Path
+          from urllib.parse import urljoin, urlparse
+          import requests
+          from bs4 import BeautifulSoup
+
+          root=Path('nom024-cnis-2025')
+          root.mkdir(exist_ok=True)
+          url='https://www.gob.mx/csg/es/articulos/medicamentos-compendio-nacional-de-insumos-para-la-salud-2025'
+          s=requests.Session()
+          s.headers.update({'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124 Safari/537.36','Accept':'text/html,application/xhtml+xml,application/pdf,*/*'})
+          r=s.get(url,timeout=120,allow_redirects=True)
+          r.raise_for_status()
+          (root/'CSG-CNIS-2025.html').write_bytes(r.content)
+          soup=BeautifulSoup(r.content,'html.parser')
+          links=[]
+          for a in soup.find_all('a',href=True):
+              absolute=urljoin(r.url,a['href'])
+              text=' '.join(a.get_text(' ',strip=True).split())
+              hay=(text+' '+absolute).lower()
+              if 'cms/uploads/attachment' in absolute or any(k in hay for k in ('cnis 2025','compendio nacional','material de curaci','instrumental y equipo','medicamentos','vía de administración','via de administracion')):
+                  links.append({'text':text,'url':absolute})
+          # Deduplicate while preserving order.
+          unique=[]; seen=set()
+          for item in links:
+              if item['url'] in seen: continue
+              seen.add(item['url']); unique.append(item)
+          (root/'discovered-links.json').write_text(json.dumps(unique,ensure_ascii=False,indent=2),encoding='utf-8')
+          records=[]
+          for i,item in enumerate(unique,1):
+              u=item['url']
+              if 'cms/uploads/attachment' not in u: continue
+              rr=s.get(u,timeout=180,allow_redirects=True)
+              name=os.path.basename(urlparse(rr.url).path) or f'attachment-{i}'
+              name=re.sub(r'[^A-Za-z0-9._()\-]+','_',name)
+              p=root/name
+              p.write_bytes(rr.content)
+              records.append({
+                  'anchor_text':item['text'],
+                  'requested_url':u,
+                  'final_url':rr.url,
+                  'status':rr.status_code,
+                  'content_type':rr.headers.get('content-type',''),
+                  'bytes':len(rr.content),
+                  'sha256':hashlib.sha256(rr.content).hexdigest(),
+                  'file':name,
+              })
+          with (root/'attachments.csv').open('w',encoding='utf-8',newline='') as f:
+              w=csv.DictWriter(f,fieldnames=['anchor_text','requested_url','final_url','status','content_type','bytes','sha256','file'])
+              w.writeheader(); w.writerows(records)
+          (root/'consulted-at.txt').write_text(datetime.now(timezone.utc).replace(microsecond=0).isoformat()+'\n',encoding='utf-8')
+          sums=[]
+          for p in sorted(x for x in root.iterdir() if x.is_file() and x.name!='SHA256SUMS'):
+              sums.append(f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}')
+          (root/'SHA256SUMS').write_text('\n'.join(sums)+'\n',encoding='utf-8')
+          print(json.dumps(records,ensure_ascii=False,indent=2))
+          PY
+      - name: Validate downloaded PDFs
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in nom024-cnis-2025/*.pdf; do
+            [ -e "$f" ] || continue
+            test "$(file -b --mime-type "$f")" = application/pdf
+            pdfinfo "$f" >/dev/null
+          done
+      - name: Upload CNIS originals
+        uses: actions/upload-artifact@v4
+        with:
+          name: nom024-cnis-2025
+          path: nom024-cnis-2025
+          if-no-files-found: error
+          retention-days: 7
