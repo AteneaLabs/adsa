@@ -1,0 +1,123 @@
+name: NOM-024 targeted official-source fetch
+
+on:
+  push:
+    branches: [ops/nom024-official-fetch-20260829]
+    paths: [.github/workflows/nom024-targeted-fetch.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch procedure, INEGI and conformity sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=nom024-targeted-fetch
+          mkdir -p "$OUT"/{01-procedimiento,02-catalogos/CAT_FORMACION,02-catalogos/CAT_RELIGION,01-evaluadores,raw-pages}
+          cat > /tmp/targets.tsv <<'EOF'
+          01-procedimiento	DGIS_NOM-024-PEC_20250605.png	http://www.dgis.salud.gob.mx/images/certificacion/DGIS_NOM-024-PEC_20250605.png
+          01-procedimiento	guia_rapida_proceso_de_certificacion.pdf	http://www.dgis.salud.gob.mx/contenidos/intercambio/guias/guia_rapida_proceso_de_certificacion.pdf?v=2025.05.30
+          01-procedimiento	LineaTiempo-PEC_20220804.svg	http://www.dgis.salud.gob.mx/images/certificacion/LineaTiempo-PEC_20220804.svg
+          02-catalogos/CAT_FORMACION	CMPE_2016.pdf	https://www.inegi.org.mx/contenidos/productos/prod_serv/contenidos/espanol/bvinegi/productos/nueva_estruc/702825086664.pdf
+          02-catalogos/CAT_FORMACION	CMPE_2011.pdf	http://www.inegi.org.mx/est/contenidos/espanol/metodologias/clasificadores/CMPE_2011.pdf
+          02-catalogos/CAT_RELIGION	Clasificaciones_CPV_2010.pdf	https://www.inegi.org.mx/contenidos/productos/prod_serv/contenidos/espanol/bvinegi/productos/nueva_estruc/702825002067.pdf
+          02-catalogos/CAT_RELIGION	Clasificacion_religiones_2010_a.pdf	https://www.inegi.org.mx/contenidos/clasificadoresycatalogos/doc/clasificacion_de_religiones_2010.pdf
+          02-catalogos/CAT_RELIGION	Clasificacion_religiones_2010_b.pdf	https://www.inegi.org.mx/contenidos/clasificadoresycatalogos/doc/clasificacion_religiones_2010.pdf
+          02-catalogos/CAT_RELIGION	Clasificacion_religiones_2010_c.pdf	https://www.inegi.org.mx/contenidos/programas/ccpv/2010/doc/clasificacion_religiones_2010.pdf
+          02-catalogos/CAT_RELIGION	Clasificaciones_CPV_2020.pdf	https://www.inegi.org.mx/contenidos/programas/ccpv/2020/doc/clasificaciones_censo2020.pdf
+          raw-pages	CNIS-base-2025-DOF.pdf	https://www.dof.gob.mx/nota_to_pdf.php?fecha=26/04/2025&edicion=MAT
+          EOF
+          python - <<'PY'
+          import csv, hashlib, json, os, subprocess
+          from datetime import datetime, timezone
+          from pathlib import Path
+          from urllib.parse import urlparse
+          import requests
+
+          out=Path('nom024-targeted-fetch')
+          s=requests.Session(); s.headers.update({'User-Agent':'Mozilla/5.0 NOM024EvidenceCollector/3.0','Accept':'*/*'})
+          records=[]
+          for section,name,url in csv.reader(open('/tmp/targets.tsv',encoding='utf-8'),delimiter='\t'):
+              p=out/section/name; p.parent.mkdir(parents=True,exist_ok=True)
+              rec={'section':section,'name':name,'requested_url':url,'fetched_at_utc':datetime.now(timezone.utc).replace(microsecond=0).isoformat()}
+              errors=[]; response=None
+              parsed=urlparse(url)
+              variants=[url]
+              if parsed.scheme=='http': variants.append(url.replace('http://','https://',1))
+              for candidate in variants:
+                  for verify in (True,False):
+                      try:
+                          r=s.get(candidate,timeout=120,allow_redirects=True,verify=verify)
+                          response=r
+                          if r.status_code < 500: break
+                          errors.append(f'{candidate} verify={verify}: HTTP {r.status_code}')
+                      except Exception as e: errors.append(f'{candidate} verify={verify}: {type(e).__name__}: {e}')
+                  if response is not None and response.status_code < 500: break
+              if response is None:
+                  rec['error']=' | '.join(errors); records.append(rec); continue
+              data=response.content; ctype=response.headers.get('content-type','')
+              rec.update({'final_url':response.url,'status':response.status_code,'content_type':ctype,'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest()})
+              valid=response.ok and len(data)>100 and not ('text/html' in ctype.lower() and name.lower().endswith(('.pdf','.png','.svg')))
+              rec['accepted']=valid
+              if valid:
+                  p.write_bytes(data); rec['saved_path']=str(p.relative_to(out))
+              else:
+                  q=p.with_suffix(p.suffix+'.response'); q.write_bytes(data); rec['saved_path']=str(q.relative_to(out)); rec['error']='unexpected status/content type'
+              records.append(rec)
+          (out/'target-fetch-report.json').write_text(json.dumps(records,ensure_ascii=False,indent=2),encoding='utf-8')
+          for r in records: print(json.dumps(r,ensure_ascii=False))
+          PY
+
+          # Execute JavaScript in the official pages and save the resulting DOM.
+          CHROME=$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)
+          if [ -n "$CHROME" ]; then
+            "$CHROME" --headless --no-sandbox --disable-gpu --virtual-time-budget=12000 --dump-dom 'https://www.inegi.org.mx/datos/clasificaciones.html' > "$OUT/raw-pages/inegi-clasificaciones-rendered.html" || true
+            "$CHROME" --headless --no-sandbox --disable-gpu --virtual-time-budget=12000 --dump-dom 'https://www.inegi.org.mx/app/biblioteca/ficha.html?upc=702825086664' > "$OUT/raw-pages/inegi-cmpe-2016-rendered.html" || true
+            "$CHROME" --headless --no-sandbox --disable-gpu --virtual-time-budget=12000 --dump-dom 'https://www.inegi.org.mx/app/biblioteca/ficha.html?upc=702825002067' > "$OUT/raw-pages/inegi-cpv2010-rendered.html" || true
+            "$CHROME" --headless --no-sandbox --disable-gpu --virtual-time-budget=12000 --dump-dom 'https://platiica.economia.gob.mx/evaluacion-de-la-conformidad/busqueda-avanzada/?asp_s=NOM-024-SSA3-2012' > "$OUT/01-evaluadores/platiica-oec-rendered.html" || true
+            "$CHROME" --headless --no-sandbox --disable-gpu --virtual-time-budget=12000 --dump-dom 'https://platiica.economia.gob.mx/verificacion-y-vigilancia/busqueda-avanzada/?asp_s=NOM-024-SSA3-2012' > "$OUT/01-evaluadores/platiica-verificacion-rendered.html" || true
+          fi
+
+          python - <<'PY'
+          import csv, hashlib, json
+          from pathlib import Path
+          from urllib.parse import urljoin
+          from bs4 import BeautifulSoup
+          out=Path('nom024-targeted-fetch'); links=[]
+          bases={
+            'raw-pages/inegi-clasificaciones-rendered.html':'https://www.inegi.org.mx/datos/clasificaciones.html',
+            'raw-pages/inegi-cmpe-2016-rendered.html':'https://www.inegi.org.mx/app/biblioteca/ficha.html?upc=702825086664',
+            'raw-pages/inegi-cpv2010-rendered.html':'https://www.inegi.org.mx/app/biblioteca/ficha.html?upc=702825002067',
+            '01-evaluadores/platiica-oec-rendered.html':'https://platiica.economia.gob.mx/evaluacion-de-la-conformidad/busqueda-avanzada/?asp_s=NOM-024-SSA3-2012',
+            '01-evaluadores/platiica-verificacion-rendered.html':'https://platiica.economia.gob.mx/verificacion-y-vigilancia/busqueda-avanzada/?asp_s=NOM-024-SSA3-2012',
+          }
+          for rel,base in bases.items():
+              p=out/rel
+              if not p.exists(): continue
+              s=BeautifulSoup(p.read_bytes(),'html.parser')
+              for tag in s.find_all(['a','link','script','iframe','img']):
+                  raw=tag.get('href') or tag.get('src')
+                  if not raw: continue
+                  links.append({'source':rel,'text':' '.join(tag.get_text(' ',strip=True).split()),'url':urljoin(base,raw)})
+          with (out/'rendered-links.tsv').open('w',encoding='utf-8',newline='') as f:
+              w=csv.DictWriter(f,fieldnames=['source','text','url'],delimiter='\t'); w.writeheader(); w.writerows(links)
+          sums=[]
+          for p in sorted(x for x in out.rglob('*') if x.is_file() and x.name!='SHA256SUMS'):
+              sums.append(f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.relative_to(out)}')
+          (out/'SHA256SUMS').write_text('\n'.join(sums)+'\n',encoding='utf-8')
+          print('rendered links',len(links))
+          PY
+      - name: Upload targeted bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: nom024-targeted-fetch
+          path: nom024-targeted-fetch
+          if-no-files-found: error
+          retention-days: 7
