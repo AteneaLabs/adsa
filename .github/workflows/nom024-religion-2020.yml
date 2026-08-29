@@ -1,0 +1,37 @@
+name: NOM-024 current religion classifier
+
+on:
+  push:
+    branches: [ops/nom024-official-fetch-20260829]
+    paths: [.github/workflows/nom024-religion-2020.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch and validate official INEGI PDF
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p nom024-religion-2020
+          url='https://www.inegi.org.mx/contenidos/productos/prod_serv/contenidos/espanol/bvinegi/productos/nueva_estruc/702825197261.pdf'
+          curl -k -L --connect-timeout 15 --max-time 120 --fail --silent --show-error "$url" -o nom024-religion-2020/Clasificacion_religiones_2020.pdf
+          test "$(file -b --mime-type nom024-religion-2020/Clasificacion_religiones_2020.pdf)" = application/pdf
+          sha256sum nom024-religion-2020/Clasificacion_religiones_2020.pdf > nom024-religion-2020/SHA256SUMS
+          printf 'source_url\t%s\nconsulted_at_utc\t%s\n' "$url" "$(date -u +%FT%TZ)" > nom024-religion-2020/source.tsv
+          file nom024-religion-2020/Clasificacion_religiones_2020.pdf
+          ls -l nom024-religion-2020/Clasificacion_religiones_2020.pdf
+          cat nom024-religion-2020/SHA256SUMS
+      - name: Upload current classifier
+        uses: actions/upload-artifact@v4
+        with:
+          name: nom024-religion-2020
+          path: nom024-religion-2020
+          if-no-files-found: error
+          retention-days: 7
