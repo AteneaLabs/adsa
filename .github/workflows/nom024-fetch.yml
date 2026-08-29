@@ -1,0 +1,123 @@
+name: NOM-024 official-source fetch
+
+on:
+  push:
+    branches: [ops/nom024-official-fetch-20260829]
+    paths: [.github/workflows/nom024-fetch.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install collector dependencies
+        run: python -m pip install --disable-pip-version-check requests beautifulsoup4
+      - name: Download and inventory official sources
+        shell: bash
+        run: |
+          cat > /tmp/collect.py <<'PY'
+          import csv, hashlib, json, mimetypes, os, re, time
+          from datetime import datetime, timezone
+          from pathlib import Path
+          from urllib.parse import unquote, urljoin, urlparse, urlunparse
+          import requests
+          from bs4 import BeautifulSoup
+
+          OUT = Path('nom024-official-fetch')
+          OUT.mkdir(exist_ok=True)
+          S = requests.Session()
+          S.headers.update({'User-Agent': 'Mozilla/5.0 NOM024EvidenceCollector/1.0', 'Accept': '*/*'})
+          EXT = {'.pdf','.zip','.xlsx','.xls','.csv','.xml','.json','.txt','.doc','.docx','.jar','.jks','.rar','.7z','.dbf','.shp','.shx','.prj','.ods','.rtf'}
+          OFFICIAL = ('salud.gob.mx','gob.mx','inegi.org.mx','csg.gob.mx','dof.gob.mx','correosdemexico.gob.mx','segob.gob.mx','economia.gob.mx','ema.org.mx')
+          STARTS = [
+            ('00-pages','DGIS-certificacion','http://www.dgis.salud.gob.mx/contenidos/intercambio/certificacion-nom-024-ssa3-2012.html',True),
+            ('00-pages','DGIS-catalogos','http://www.dgis.salud.gob.mx/contenidos/intercambio/iis_catalogos_gobmx.html',True),
+            ('00-pages','DGIS-sires-certificados','http://www.dgis.salud.gob.mx/contenidos/intercambio/sires_certificacion_gobmx.html',True),
+            ('00-gobi','GOBI-home','https://gobi.salud.gob.mx/',True),
+            ('03-cifrado-sinba','Manual_Cifrado_20220630.pdf','https://gobi.salud.gob.mx/gobi/descargas/manuales/Manual_Cifrado_20220630.pdf?v=2022.06.01',False),
+            ('03-cifrado-sinba','Transferencia_2024.zip','https://gobi.salud.gob.mx/gobi/descargas/manuales/Transferencia_2024.zip?v=2024.07.15',False),
+            ('03-cifrado-sinba','Manual_Carga_Masiva_20220126.pdf','https://gobi.salud.gob.mx/gobi/descargas/manuales/Manual_Carga_Masiva_20220126.pdf?v=2022.06.01',False),
+          ]
+
+          def stamp(): return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+          def canon(u):
+            p=urlparse(u); return urlunparse((p.scheme,p.netloc,p.path,p.params,p.query,''))
+          def official(u):
+            h=(urlparse(u).hostname or '').lower(); return any(h==d or h.endswith('.'+d) for d in OFFICIAL)
+          def safe(s):
+            s=unquote(s).replace('\\','_').replace('/','_').strip(); s=re.sub(r'[^A-Za-z0-9._()\-]+','-',s); return (s.strip('-.') or 'item')[:180]
+          def get(u):
+            variants=[u]
+            p=urlparse(u)
+            variants.append(urlunparse((('https' if p.scheme=='http' else 'http'),p.netloc,p.path,p.params,p.query,p.fragment)))
+            errors=[]
+            for v in dict.fromkeys(variants):
+              for verify in (True,False):
+                try:
+                  r=S.get(v,timeout=90,allow_redirects=True,verify=verify)
+                  if r.status_code < 500 or v==variants[-1]: return r
+                  errors.append(f'{v} verify={verify}: HTTP {r.status_code}')
+                except Exception as e: errors.append(f'{v} verify={verify}: {type(e).__name__}: {e}')
+                time.sleep(.25)
+            raise RuntimeError(' | '.join(errors))
+          def filename(u, ctype, logical):
+            n=os.path.basename(urlparse(u).path.rstrip('/'))
+            if not n or '.' not in n:
+              n=safe(logical)+(mimetypes.guess_extension((ctype or '').split(';')[0].strip()) or '')
+            return safe(n)
+          def save(section, logical, u, kind):
+            rec={'requested_url':u,'section':section,'logical_name':logical,'kind':kind,'fetched_at_utc':stamp()}
+            try:
+              r=get(u); data=r.content; ctype=r.headers.get('content-type','')
+              d=OUT/section; d.mkdir(parents=True,exist_ok=True)
+              n=filename(r.url,ctype,logical)
+              if 'text/html' in ctype.lower() and not n.lower().endswith(('.html','.htm')): n=safe(logical)+'.html'
+              p=d/n; i=2
+              while p.exists(): p=d/f'{Path(n).stem}-{i}{Path(n).suffix}'; i+=1
+              p.write_bytes(data)
+              rec.update({'final_url':r.url,'status':r.status_code,'content_type':ctype,'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest(),'saved_path':str(p.relative_to(OUT)),'error':None if r.ok else f'HTTP {r.status_code}'})
+              return rec,data,ctype
+            except Exception as e:
+              rec.update({'final_url':None,'status':None,'content_type':None,'bytes':None,'sha256':None,'saved_path':None,'error':f'{type(e).__name__}: {e}'})
+              return rec,None,''
+
+          records=[]; links=[]; queued=[]; seen=set()
+          for section,logical,u,crawl in STARTS:
+            k=canon(u)
+            if k in seen: continue
+            seen.add(k)
+            rec,data,ctype=save(section,logical,u,'page' if crawl else 'direct'); records.append(rec); print(json.dumps(rec,ensure_ascii=False))
+            if not crawl or data is None or 'text/html' not in ctype.lower(): continue
+            soup=BeautifulSoup(data,'html.parser')
+            for tag in soup.find_all(['a','link','script','iframe']):
+              raw=tag.get('href') if tag.name in ('a','link') else tag.get('src')
+              if not raw: continue
+              absolute=canon(urljoin(rec.get('final_url') or u,raw)); text=' '.join(tag.get_text(' ',strip=True).split())
+              asset=Path(urlparse(absolute).path).suffix.lower() in EXT
+              links.append({'source_page':rec.get('final_url') or u,'section':section,'anchor_text':text,'url':absolute,'official':official(absolute),'asset_candidate':asset})
+              if official(absolute) and asset and absolute not in seen:
+                seen.add(absolute); queued.append((section,text or Path(urlparse(absolute).path).name,absolute))
+          for section,logical,u in queued:
+            rec,_,_=save(section,logical,u,'discovered-asset'); records.append(rec); print(json.dumps(rec,ensure_ascii=False))
+          report={'generated_at_utc':stamp(),'records':records,'summary':{'requests':len(records),'success_2xx':sum(1 for r in records if isinstance(r.get('status'),int) and 200<=r['status']<300),'failed':sum(1 for r in records if r.get('error')),'discovered_links':len(links)}}
+          (OUT/'fetch-report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
+          with (OUT/'discovered-links.tsv').open('w',encoding='utf-8',newline='') as f:
+            w=csv.DictWriter(f,fieldnames=['source_page','section','anchor_text','url','official','asset_candidate'],delimiter='\t'); w.writeheader(); w.writerows(links)
+          sums=[]
+          for p in sorted(x for x in OUT.rglob('*') if x.is_file() and x.name!='SHA256SUMS'):
+            sums.append(f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.relative_to(OUT)}')
+          (OUT/'SHA256SUMS').write_text('\n'.join(sums)+'\n',encoding='utf-8')
+          PY
+          python /tmp/collect.py
+      - name: Upload official-source bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: nom024-official-fetch
+          path: nom024-official-fetch
+          if-no-files-found: error
+          retention-days: 7
