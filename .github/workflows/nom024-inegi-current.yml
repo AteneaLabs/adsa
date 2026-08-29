@@ -1,0 +1,78 @@
+name: NOM-024 INEGI current classifiers
+
+on:
+  push:
+    branches: [ops/nom024-official-fetch-20260829]
+    paths: [.github/workflows/nom024-inegi-current.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Render INEGI classifications and collect official downloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=nom024-inegi-current
+          mkdir -p "$OUT"
+          CHROME=$(command -v google-chrome || command -v chromium || command -v chromium-browser)
+          "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
+            --virtual-time-budget=20000 --dump-dom \
+            'https://www.inegi.org.mx/datos/clasificaciones.html' \
+            > "$OUT/clasificaciones-rendered.html"
+          "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
+            --window-size=1440,12000 --virtual-time-budget=20000 \
+            --screenshot="$OUT/clasificaciones.png" \
+            'https://www.inegi.org.mx/datos/clasificaciones.html' || true
+          python - <<'PY'
+          import csv, hashlib, json, re
+          from pathlib import Path
+          from urllib.parse import urljoin, urlparse
+          import requests
+          from bs4 import BeautifulSoup
+
+          out=Path('nom024-inegi-current')
+          html=(out/'clasificaciones-rendered.html').read_text(encoding='utf-8',errors='replace')
+          soup=BeautifulSoup(html,'html.parser')
+          rows=[]
+          for tag in soup.find_all(['a','button','div','span','li']):
+              text=' '.join(tag.get_text(' ',strip=True).split())
+              href=tag.get('href') or tag.get('data-url') or tag.get('data-href') or tag.get('onclick') or ''
+              if 'relig' in (text+' '+href).lower() or 'formaci' in (text+' '+href).lower():
+                  rows.append({'tag':tag.name,'text':text[:500],'href':href[:1000],'html':str(tag)[:2000]})
+          (out/'religion-formation-elements.json').write_text(json.dumps(rows,ensure_ascii=False,indent=2),encoding='utf-8')
+          urls=[]
+          for tag in soup.find_all(True):
+              for attr in ('href','src','data-url','data-href','data-download','onclick'):
+                  value=tag.get(attr)
+                  if not value: continue
+                  text=' '.join(tag.get_text(' ',strip=True).split())
+                  hay=(text+' '+value).lower()
+                  if 'relig' in hay or 'formaci' in hay or '702825' in hay:
+                      urls.append({'text':text[:500],'attr':attr,'value':value,'absolute':urljoin('https://www.inegi.org.mx/datos/clasificaciones.html',value) if attr!='onclick' else value})
+          (out/'candidate-links.json').write_text(json.dumps(urls,ensure_ascii=False,indent=2),encoding='utf-8')
+          # Also extract URL-looking strings from inline scripts and JSON payloads.
+          strings=[]
+          for m in re.finditer(r'https?://[^\"\'<>\\ ]+|/[A-Za-z0-9_./?&=%+-]+',html):
+              v=m.group(0)
+              if any(k in v.lower() for k in ('relig','clasif','702825','formacion','formaci')):
+                  strings.append(v)
+          (out/'candidate-strings.txt').write_text('\n'.join(dict.fromkeys(strings)),encoding='utf-8')
+          for p in sorted(x for x in out.rglob('*') if x.is_file()):
+              print(hashlib.sha256(p.read_bytes()).hexdigest(),p)
+          PY
+        env:
+          LANG: C.UTF-8
+      - name: Upload INEGI discovery
+        uses: actions/upload-artifact@v4
+        with:
+          name: nom024-inegi-current
+          path: nom024-inegi-current
+          if-no-files-found: error
+          retention-days: 7
