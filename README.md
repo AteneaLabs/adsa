@@ -18,7 +18,7 @@ By Atenea Labs Research Team
 
 ## Overview
 
-ADSA is an autonomous multi-agent system developed by [Atenea Labs](https://atenealabs.com) that automates the entire machine learning process. The system has demonstrated the capability to outperform 98% of data scientists in global competitions.
+ADSA is an autonomous multi-agent system developed by [Atenea Labs](https://atenealabs.com) that automates the entire machine learning process. In its evaluation it placed 71st of 2,461 active participants (top 2.9%) in Kaggle's Spaceship Titanic competition ([whitepaper](ADSA_Whitepaper_EN.pdf), section 7.3).
 
 📄 Read our detailed whitepaper: [English Version](ADSA_Whitepaper_EN.pdf)
 
@@ -249,7 +249,7 @@ ADSA is developed by the Atenea Labs Research Team, led by Carlos Navarro Cabrer
 
 ## Descripción General
 
-ADSA es un sistema multi-agente autónomo desarrollado por [Atenea Labs](https://atenealabs.com) que automatiza todo el proceso de machine learning. El sistema ha demostrado la capacidad de superar al 98% de los científicos de datos en competiciones globales.
+ADSA es un sistema multi-agente autónomo desarrollado por [Atenea Labs](https://atenealabs.com) que automatiza todo el proceso de machine learning. En su evaluación quedó en el puesto 71 de 2.461 participantes activos (top 2,9 %) de la competición Spaceship Titanic de Kaggle ([whitepaper](ADSA_Whitepaper_ES.pdf), sección 7.3).
 
 📄 Lee nuestro whitepaper detallado: [Versión en Español](ADSA_Whitepaper_ES.pdf)
 
