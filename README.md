@@ -18,21 +18,15 @@ By Atenea Labs Research Team
 
 ## Overview
 
-ADSA is an autonomous multi-agent system developed by [Atenea Labs](https://atenealabs.com) that automates the entire machine learning process. In its evaluation it placed 71st of 2,461 active participants (top 2.9%) in Kaggle's Spaceship Titanic competition ([whitepaper](ADSA_Whitepaper_EN.pdf), section 7.3).
+ADSA is an autonomous multi-agent system developed by [Atenea Labs](https://www.atenea.dev/) that automates the entire machine learning process. In its evaluation it placed 71st of 2,461 active participants (top 2.9%) in Kaggle's Spaceship Titanic competition ([whitepaper](ADSA_Whitepaper_EN.pdf), section 7.3).
+
+> **Context.** ADSA was built at Atenea Labs in late 2024, when OpenAI o1 and Claude 3.5 Sonnet were the frontier models. It pairs an o1 agent that writes the ML code with a Claude 3.5 Sonnet agent that debugs and fixes it, under a coordinator that runs the loop. The whitepaper was published on 15 January 2025. This repository is kept as that work was released.
 
 📄 Read our detailed whitepaper: [English Version](ADSA_Whitepaper_EN.pdf)
 
 ## About Atenea Labs
 
-Atenea Labs is a leading AI consultancy firm that specializes in transforming businesses through cutting-edge artificial intelligence solutions. Our team of experts helps companies leverage the power of AI to:
-
-- 🚀 Accelerate Digital Transformation
-- 💡 Develop Custom AI Solutions
-- 📊 Automate Data Analysis
-- 🔄 Optimize Business Processes
-- 🎯 Drive Innovation
-
-Visit [atenealabs.com](https://atenealabs.com) to learn how we can help transform your business with AI.
+Atenea Labs is the applied-AI lab Carlos Navarro founded in 2023, where ADSA was built. Today Atenea Labs builds [Vitalink](https://www.vitalink.chat/), the action layer for healthcare, and [Brida](https://www.brida.ai/), the all-in-one infrastructure for autonomous companies. More at [atenea.dev](https://www.atenea.dev/).
 
 ## Key Features
 
@@ -232,8 +226,7 @@ See [LICENSE.md](LICENSE.md) for details.
 
 ## Contact
 
-Transform your business with AI:
-- 🌐 Website: [atenealabs.com](https://atenealabs.com)
+- 🌐 Website: [atenea.dev](https://www.atenea.dev/)
 - 📧 Email: [info@atenea.dev](mailto:info@atenea.dev)
 - 🔬 Research: [adsa.atenea.dev](https://adsa.atenea.dev)
 - 💼 LinkedIn: [Atenea Labs](https://linkedin.com/company/atenealabs)
@@ -249,21 +242,15 @@ ADSA is developed by the Atenea Labs Research Team, led by Carlos Navarro Cabrer
 
 ## Descripción General
 
-ADSA es un sistema multi-agente autónomo desarrollado por [Atenea Labs](https://atenealabs.com) que automatiza todo el proceso de machine learning. En su evaluación quedó en el puesto 71 de 2.461 participantes activos (top 2,9 %) de la competición Spaceship Titanic de Kaggle ([whitepaper](ADSA_Whitepaper_ES.pdf), sección 7.3).
+ADSA es un sistema multi-agente autónomo desarrollado por [Atenea Labs](https://www.atenea.dev/) que automatiza todo el proceso de machine learning. En su evaluación quedó en el puesto 71 de 2.461 participantes activos (top 2,9 %) de la competición Spaceship Titanic de Kaggle ([whitepaper](ADSA_Whitepaper_ES.pdf), sección 7.3).
+
+> **Contexto.** ADSA se construyó en Atenea Labs a finales de 2024, cuando OpenAI o1 y Claude 3.5 Sonnet eran los modelos frontera. Combina un agente o1 que escribe el código de ML con un agente Claude 3.5 Sonnet que lo depura y corrige, bajo un coordinador que dirige el ciclo. El whitepaper se publicó el 15 de enero de 2025. Este repositorio se conserva tal como se publicó ese trabajo.
 
 📄 Lee nuestro whitepaper detallado: [Versión en Español](ADSA_Whitepaper_ES.pdf)
 
 ## Sobre Atenea Labs
 
-Atenea Labs es una consultora líder en Inteligencia Artificial que se especializa en transformar empresas mediante soluciones de IA de vanguardia. Nuestro equipo de expertos ayuda a las empresas a aprovechar el poder de la IA para:
-
-- 🚀 Acelerar la Transformación Digital
-- 💡 Desarrollar Soluciones de IA Personalizadas
-- 📊 Automatizar el Análisis de Datos
-- 🔄 Optimizar Procesos de Negocio
-- 🎯 Impulsar la Innovación
-
-Visita [atenealabs.com](https://atenealabs.com) para descubrir cómo podemos ayudar a transformar tu empresa con IA.
+Atenea Labs es el laboratorio de IA aplicada que Carlos Navarro fundó en 2023, donde se construyó ADSA. Hoy Atenea Labs construye [Vitalink](https://www.vitalink.chat/), la capa de acción de la salud, y [Brida](https://www.brida.ai/), la infraestructura todo en uno para empresas autónomas. Más en [atenea.dev](https://www.atenea.dev/).
 
 ## Características Principales
 
@@ -380,8 +367,7 @@ Ver [LICENSE.md](LICENSE.md) para más detalles.
 
 ## Contacto
 
-Transforma tu empresa con IA:
-- 🌐 Sitio web: [atenealabs.com](https://atenealabs.com)
+- 🌐 Sitio web: [atenea.dev](https://www.atenea.dev/)
 - 📧 Email: [info@atenea.dev](mailto:info@atenea.dev)
 - 🔬 Investigación: [adsa.atenea.dev](https://adsa.atenea.dev)
 - 💼 LinkedIn: [Atenea Labs](https://linkedin.com/company/atenealabs)
