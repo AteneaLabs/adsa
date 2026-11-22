@@ -61,6 +61,10 @@ Atenea Labs is the applied-AI lab Carlos Navarro founded in 2023, where ADSA was
    - Timeout management
    - Self-healing capabilities
 
+## Security
+
+ADSA generates and runs Python code. Treat that code as untrusted and run ADSA in an isolated environment; see [SECURITY.md](SECURITY.md).
+
 ## Requirements
 
 - Python 3.8+
